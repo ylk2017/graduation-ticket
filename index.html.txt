@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🎓 畢業典禮入場系統</title>
+<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, "PingFang TC", "Microsoft JhengHei", sans-serif;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  min-height: 100vh; padding: 16px; color: #333;
+}
+.container { max-width: 1100px; margin: 0 auto; }
+.header {
+  background: white; padding: 24px; border-radius: 16px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.15); margin-bottom: 16px; text-align: center;
+}
+.header h1 { color: #764ba2; font-size: 1.5em; margin-bottom: 6px; }
+.header .school { color: #333; font-size: 1.1em; font-weight: 600; margin-bottom: 4px; }
+.header p { color: #666; font-size: 0.9em; }
+.tabs {
+  display: flex; gap: 6px; margin-bottom: 16px; flex-wrap: wrap;
+  background: white; padding: 8px; border-radius: 12px;
+}
+.tab {
+  flex: 1; min-width: 130px; padding: 12px; border: none; border-radius: 8px;
+  background: #f0f0f0; cursor: pointer; font-size: 0.9em; font-weight: 600;
+  color: #666; transition: all 0.3s;
+}
+.tab.active { background: linear-gradient(135deg, #667eea, #764ba2); color: white; }
+.content {
+  background: white; padding: 24px; border-radius: 16px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.15); min-height: 400px;
+}
+.panel { display: none; }
+.panel.active { display: block; }
+h2 { color: #764ba2; margin-bottom: 16px; font-size: 1.3em; }
+.btn {
+  padding: 12px 20px; border: none; border-radius: 8px; cursor: pointer;
+  font-size: 1em; font-weight: 600; transition: all 0.3s; margin: 4px;
+}
+.btn-primary { background: linear-gradient(135deg, #667eea, #764ba2); color: white; }
+.btn-success { background: linear-gradient(135deg, #11998e, #38ef7d); color: white; }
+.btn-danger { background: linear-gradient(135deg, #eb3349, #f45c43); color: white; }
+.btn:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(0,0,0,0.2); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; margin-top: 16px; }
+.ticket-card {
+  background: #f9f9f9; padding: 12px; border-radius: 10px; text-align: center;
+  border: 2px solid #eee; transition: all 0.3s;
+}
+.ticket-card:hover { border-color: #764ba2; transform: scale(1.02); }
+.ticket-card .id { font-weight: bold; color: #764ba2; margin-bottom: 8px; font-size: 0.95em; }
+.ticket-card .qr-row { display: flex; gap: 6px; justify-content: center; margin-bottom: 6px; }
+.ticket-card .qr-box { text-align: center; }
+.ticket-card .qr-label { font-size: 0.75em; color: #888; margin-top: 2px; }
+.ticket-card canvas { max-width: 100%; height: auto; }
+.ticket-card .btn { padding: 6px 10px; font-size: 0.8em; margin-top: 6px; }
+#reader { width: 100%; max-width: 500px; margin: 0 auto; }
+.scan-result {
+  margin-top: 16px; padding: 20px; border-radius: 10px; text-align: center;
+  font-size: 1.2em; font-weight: bold; display: none;
+}
+.scan-result.success { display: block; background: #d4edda; color: #155724; border: 2px solid #28a745; }
+.scan-result.error { display: block; background: #f8d7da; color: #721c24; border: 2px solid #dc3545; }
+.scan-result.warning { display: block; background: #fff3cd; color: #856404; border: 2px solid #ffc107; }
+input[type="text"] {
+  padding: 12px; border: 2px solid #ddd; border-radius: 8px; font-size: 1em;
+  width: 100%; max-width: 300px;
+}
+table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+th, td { padding: 10px; text-align: left; border-bottom: 1px solid #eee; }
+th { background: #764ba2; color: white; }
+tr:hover { background: #f5f5f5; }
+.stats {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px; margin-bottom: 16px;
+}
+.stat-card {
+  background: linear-gradient(135deg, #667eea, #764ba2); color: white;
+  padding: 16px; border-radius: 10px; text-align: center;
+}
+.stat-card .num { font-size: 2em; font-weight: bold; }
+.stat-card .label { font-size: 0.9em; opacity: 0.9; }
+.filter-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; align-items: center; }
+.filter-row select {
+  padding: 10px; border: 2px solid #ddd; border-radius: 8px; font-size: 1em;
+}
+.notice {
+  background: #fff3cd; border-left: 4px solid #ffc107; padding: 12px;
+  margin-bottom: 16px; border-radius: 6px; font-size: 0.9em;
+}
+.progress-bar {
+  width: 100%; height: 20px; background: #eee; border-radius: 10px;
+  overflow: hidden; margin: 12px 0;
+}
+.progress-fill {
+  height: 100%; background: linear-gradient(90deg, #11998e, #38ef7d);
+  width: 0%; transition: width 0.3s; text-align: center; color: white;
+  font-size: 0.8em; line-height: 20px;
+}
+@media (max-width: 600px) {
+  .tab { min-width: 45%; font-size: 0.85em; padding: 10px 6px; }
+  .header h1 { font-size: 1.2em; }
+  .header .school { font-size: 1em; }
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <div class="school">宣道會陳朱素華紀念中學</div>
+    <h1>🎓 畢業典禮入場系統</h1>
+    <p>QR Code 電子入場券管理 · 共 139 位學生 × 2 張票 = 278 張</p>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab(0)">🎫 產生入場券</button>
+    <button class="tab" onclick="switchTab(1)">📷 鏡頭掃描</button>
+    <button class="tab" onclick="switchTab(2)">🖼️ 圖片掃描</button>
+    <button class="tab" onclick="switchTab(3)">⌨️ 手動輸入</button>
+    <button class="tab" onclick="switchTab(4)">📊 入場記錄</button>
+  </div>
+
+  <div class="content">
+    <div class="panel active" id="panel-0">
+      <h2>🎫 產生學生入場券</h2>
+      <div class="notice">
+        💡 每位學生 2 張入場券（T1、T2）合併於同一個 PDF。檔名格式：<b>6A01.pdf</b>
+      </div>
+      <div class="filter-row">
+        <label><b>班別篩選：</b></label>
+        <select id="classFilter" onchange="renderTickets()">
+          <option value="all">全部班別</option>
+          <option value="6A">6A（27人）</option>
+          <option value="6B">6B（25人）</option>
+          <option value="6C">6C（26人）</option>
+          <option value="6D">6D（27人）</option>
+          <option value="6S">6S（34人）</option>
+        </select>
+        <button class="btn btn-success" onclick="downloadAllPDFs()">📥 下載全部 PDF（ZIP）</button>
+        <button class="btn btn-primary" onclick="downloadFilteredPDFs()">📥 下載目前班別</button>
+      </div>
+      <div class="progress-bar" id="progressBar" style="display:none;">
+        <div class="progress-fill" id="progressFill">0%</div>
+      </div>
+      <div class="grid" id="ticketsGrid"></div>
+    </div>
+
+    <div class="panel" id="panel-1">
+      <h2>📷 鏡頭即時掃描</h2>
+      <div class="notice">
+        💡 需要 HTTPS 網址及授權鏡頭權限。T1 與 T2 分別驗證，每張票只可使用一次。
+      </div>
+      <div style="text-align:center;">
+        <button class="btn btn-primary" id="startScanBtn" onclick="startScan()">▶️ 啟動鏡頭</button>
+        <button class="btn btn-danger" id="stopScanBtn" onclick="stopScan()" style="display:none;">⏹️ 停止</button>
+      </div>
+      <div id="reader" style="margin-top:16px;"></div>
+      <div class="scan-result" id="scanResult"></div>
+    </div>
+
+    <div class="panel" id="panel-2">
+      <h2>🖼️ 上傳 QR Code 圖片</h2>
+      <div class="notice">
+        💡 適用於無鏡頭權限情況。可上傳 QR Code 截圖或照片。
+      </div>
+      <input type="file" id="qrImageInput" accept="image/*" onchange="scanImage(event)"
+             style="padding:10px; border:2px dashed #764ba2; border-radius:8px; width:100%; max-width:400px;">
+      <div class="scan-result" id="imageResult"></div>
+    </div>
+
+    <div class="panel" id="panel-3">
+      <h2>⌨️ 手動輸入票券編號</h2>
+      <div class="notice">
+        💡 輸入完整票券編號，如 <b>6A01-T1</b> 或 <b>6S15-T2</b>。
+      </div>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <input type="text" id="manualInput" placeholder="輸入票券編號，如 6A01-T1"
+               onkeypress="if(event.key==='Enter') verifyManual()">
+        <button class="btn btn-primary" onclick="verifyManual()">✅ 驗證入場</button>
+      </div>
+      <div class="scan-result" id="manualResult"></div>
+    </div>
+
+    <div class="panel" id="panel-4">
+      <h2>📊 入場統計與記錄</h2>
+      <div class="stats">
+        <div class="stat-card"><div class="num" id="statTotal">0</div><div class="label">已入場票數</div></div>
+        <div class="stat-card"><div class="num" id="stat6A">0</div><div class="label">6A 入場</div></div>
+        <div class="stat-card"><div class="num" id="stat6B">0</div><div class="label">6B 入場</div></div>
+        <div class="stat-card"><div class="num" id="stat6C">0</div><div class="label">6C 入場</div></div>
+        <div class="stat-card"><div class="num" id="stat6D">0</div><div class="label">6D 入場</div></div>
+        <div class="stat-card"><div class="num" id="stat6S">0</div><div class="label">6S 入場</div></div>
+      </div>
+      <div>
+        <button class="btn btn-success" onclick="exportCSV()">📥 匯出 CSV</button>
+        <button class="btn btn-danger" onclick="clearRecords()">🗑️ 清除全部記錄</button>
+      </div>
+      <table>
+        <thead><tr><th>#</th><th>票券編號</th><th>入場時間</th><th>方式</th></tr></thead>
+        <tbody id="recordsTable"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+const SCHOOL_NAME = '宣道會陳朱素華紀念中學';
+const CLASSES = [
+  { name: '6A', count: 27 },
+  { name: '6B', count: 25 },
+  { name: '6C', count: 26 },
+  { name: '6D', count: 27 },
+  { name: '6S', count: 34 }
+];
+
+const STUDENTS = [];
+CLASSES.forEach(c => {
+  for (let i = 1; i <= c.count; i++) {
+    STUDENTS.push(`${c.name}${String(i).padStart(2, '0')}`);
+  }
+});
+
+const VALID_TICKETS = new Set();
+STUDENTS.forEach(s => {
+  VALID_TICKETS.add(`${s}-T1`);
+  VALID_TICKETS.add(`${s}-T2`);
+});
+
+const records = [];
+
+function switchTab(i) {
+  document.querySelectorAll('.tab').forEach((t, idx) => t.classList.toggle('active', idx === i));
+  document.querySelectorAll('.panel').forEach((p, idx) => p.classList.toggle('active', idx === i));
+  if (i === 4) renderRecords();
+}
+
+function renderTickets() {
+  const filter = document.getElementById('classFilter').value;
+  const list = filter === 'all' ? STUDENTS : STUDENTS.filter(s => s.startsWith(filter));
+  const grid = document.getElementById('ticketsGrid');
+  grid.innerHTML = '';
+  list.forEach(id => {
+    const card = document.createElement('div');
+    card.className = 'ticket-card';
+    card.innerHTML = `
+      <div class="id">${id}</div>
+      <div class="qr-row">
+        <div class="qr-box"><div id="qr-${id}-T1"></div><div class="qr-label">T1</div></div>
+        <div class="qr-box"><div id="qr-${id}-T2"></div><div class="qr-label">T2</div></div>
+      </div>
+      <button class="btn btn-primary" onclick="downloadSinglePDF('${id}')">📥 PDF</button>
+    `;
+    grid.appendChild(card);
+    new QRCode(document.getElementById(`qr-${id}-T1`), {
+      text: `${id}-T1`, width: 70, height: 70, correctLevel: QRCode.CorrectLevel.H
+    });
+    new QRCode(document.getElementById(`qr-${id}-T2`), {
+      text: `${id}-T2`, width: 70, height: 70, correctLevel: QRCode.CorrectLevel.H
+    });
+  });
+}
+
+function makeQRDataUrl(text, size = 400) {
+  return new Promise(resolve => {
+    const tmp = document.createElement('div');
+    tmp.style.display = 'none';
+    document.body.appendChild(tmp);
+    new QRCode(tmp, {
+      text, width: size, height: size,
+      colorDark: '#000000', colorLight: '#ffffff',
+      correctLevel: QRCode.CorrectLevel.H
+    });
+    setTimeout(() => {
+      const canvas = tmp.querySelector('canvas');
+      const url = canvas.toDataURL('image/png');
+      tmp.remove();
+      resolve(url);
+    }, 80);
+  });
+}
+
+function drawTicketCanvas(studentId, ticketNo, qrDataUrl) {
+  return new Promise(resolve => {
+    const W = 1200, H = 700;
+    const canvas = document.createElement('canvas');
+    canvas.width = W; canvas.height = H;
+    const ctx = canvas.getContext('2d');
+
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, W, H);
+
+    ctx.strokeStyle = '#764ba2';
+    ctx.lineWidth = 6;
+    ctx.strokeRect(20, 20, W - 40, H - 40);
+
+    ctx.strokeStyle = '#b39ddb';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(35, 35, W - 70, H - 70);
+
+    ctx.fillStyle = '#764ba2';
+    ctx.fillRect(35, 35, W - 70, 90);
+
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 42px "PingFang TC", "Microsoft JhengHei", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(SCHOOL_NAME, W / 2, 80);
+
+    ctx.fillStyle = '#333333';
+    ctx.font = 'bold 38px "PingFang TC", "Microsoft JhengHei", sans-serif';
+    ctx.fillText('畢業典禮入場券', W / 2, 175);
+
+    ctx.fillStyle = '#666666';
+    ctx.font = '22px "PingFang TC", sans-serif';
+    ctx.fillText('Graduation Ceremony Admission Ticket', W / 2, 215);
+
+    ctx.strokeStyle = '#764ba2';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(100, 245); ctx.lineTo(W - 100, 245);
+    ctx.stroke();
+
+    const img = new Image();
+    img.onload = () => {
+      const qrSize = 340;
+      const qrX = 120, qrY = 280;
+      ctx.drawImage(img, qrX, qrY, qrSize, qrSize);
+
+      ctx.strokeStyle = '#333';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(qrX, qrY, qrSize, qrSize);
+
+      const rightX = qrX + qrSize + 80;
+
+      ctx.fillStyle = '#666666';
+      ctx.font = '26px "PingFang TC", sans-serif';
+      ctx.textAlign = 'left';
+      ctx.fillText('學生編號 Student ID', rightX, 310);
+
+      ctx.fillStyle = '#764ba2';
+      ctx.font = 'bold 90px Arial, sans-serif';
+      ctx.fillText(studentId, rightX, 390);
+
+      ctx.fillStyle = '#666666';
+      ctx.font = '26px "PingFang TC", sans-serif';
+      ctx.fillText('票券編號 Ticket No.', rightX, 460);
+
+      ctx.fillStyle = '#eb3349';
+      ctx.font = 'bold 76px Arial, sans-serif';
+      ctx.fillText(ticketNo, rightX, 535);
+
+      ctx.fillStyle = '#888888';
+      ctx.font = '20px "PingFang TC", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('請於典禮入口出示此 QR Code 入場 · Please present this QR code at the entrance', W / 2, H - 70);
+
+      ctx.fillStyle = '#aaaaaa';
+      ctx.font = '18px Arial, sans-serif';
+      ctx.fillText(`Code: ${studentId}-${ticketNo}`, W / 2, H - 45);
+
+      resolve(canvas.toDataURL('image/png'));
+    };
+    img.src = qrDataUrl;
+  });
+}
+
+async function generateStudentPDF(studentId) {
+  const qr1 = await makeQRDataUrl(`${studentId}-T1`);
+  const qr2 = await makeQRDataUrl(`${studentId}-T2`);
+  const ticket1Img = await drawTicketCanvas(studentId, 'T1', qr1);
+  const ticket2Img = await drawTicketCanvas(studentId, 'T2', qr2);
+
+  const { jsPDF } = window.jspdf;
+  const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+
+  const ticketW = 190;
+  const ticketH = ticketW * (700 / 1200);
+  const x = (210 - ticketW) / 2;
+
+  pdf.addImage(ticket1Img, 'PNG', x, 15, ticketW, ticketH);
+
+  const cutY = 15 + ticketH + 12;
+  pdf.setDrawColor(180, 180, 180);
+  pdf.setLineDashPattern([3, 2], 0);
+  pdf.line(10, cutY, 200, cutY);
+  pdf.setLineDashPattern([], 0);
+  pdf.setFontSize(9);
+  pdf.setTextColor(150, 150, 150);
+  pdf.text('- - - Cut here - - -', 105, cutY - 2, { align: 'center' });
+
+  pdf.addImage(ticket2Img, 'PNG', x, cutY + 10, ticketW, ticketH);
+
+  return pdf;
+}
+
+async function downloadSinglePDF(id) {
+  const pdf = await generateStudentPDF(id);
+  pdf.save(`${id}.pdf`);
+}
+
+async function downloadAllPDFs() {
+  await downloadBatch(STUDENTS, 'All_Tickets.zip');
+}
+
+async function downloadFilteredPDFs() {
+  const filter = document.getElementById('classFilter').value;
+  const list = filter === 'all' ? STUDENTS : STUDENTS.filter(s => s.startsWith(filter));
+  const name = filter === 'all' ? 'All_Tickets.zip' : `${filter}_Tickets.zip`;
+  await downloadBatch(list, name);
+}
+
+async function downloadBatch(list, zipName) {
+  const bar = document.getElementById('progressBar');
+  const fill = document.getElementById('progressFill');
+  bar.style.display = 'block';
+  const zip = new JSZip();
+  for (let i = 0; i < list.length; i++) {
+    const id = list[i];
+    const pdf = await generateStudentPDF(id);
+    const blob = pdf.output('blob');
+    zip.file(`${id}.pdf`, blob);
+    const pct = Math.round(((i + 1) / list.length) * 100);
+    fill.style.width = pct + '%';
+    fill.textContent = `${pct}% (${i + 1}/${list.length})`;
+  }
+  const zipBlob = await zip.generateAsync({ type: 'blob' });
+  const url = URL.createObjectURL(zipBlob);
+  const a = document.createElement('a');
+  a.href = url; a.download = zipName; a.click();
+  URL.revokeObjectURL(url);
+  setTimeout(() => { bar.style.display = 'none'; fill.style.width = '0%'; }, 1500);
+}
+
+let html5QrCode = null;
+async function startScan() {
+  document.getElementById('scanResult').style.display = 'none';
+  try {
+    html5QrCode = new Html5Qrcode('reader');
+    await html5QrCode.start(
+      { facingMode: 'environment' },
+      { fps: 10, qrbox: { width: 250, height: 250 } },
+      (decoded) => { verifyTicket(decoded, '鏡頭掃描', 'scanResult'); },
+      () => {}
+    );
+    document.getElementById('startScanBtn').style.display = 'none';
+    document.getElementById('stopScanBtn').style.display = 'inline-block';
+  } catch (e) {
+    showResult('scanResult', 'error', '❌ 無法啟動鏡頭：' + e.message + '<br>請檢查：1) 使用 HTTPS 2) 允許鏡頭權限');
+  }
+}
+
+async function stopScan() {
+  if (html5QrCode) {
+    try { await html5QrCode.stop(); html5QrCode.clear(); } catch(e){}
+    html5QrCode = null;
+  }
+  document.getElementById('startScanBtn').style.display = 'inline-block';
+  document.getElementById('stopScanBtn').style.display = 'none';
+}
+
+function scanImage(evt) {
+  const file = evt.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width; canvas.height = img.height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0);
+      const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const code = jsQR(imgData.data, imgData.width, imgData.height);
+      if (code) {
+        verifyTicket(code.data, '圖片上傳', 'imageResult');
+      } else {
+        showResult('imageResult', 'error', '❌ 無法識別此圖片中的 QR Code，請使用更清晰的圖片。');
+      }
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function verifyManual() {
+  const val = document.getElementById('manualInput').value.trim().toUpperCase();
+  if (!val) { showResult('manualResult', 'error', '⚠️ 請輸入票券編號'); return; }
+  verifyTicket(val, '手動輸入', 'manualResult');
+  document.getElementById('manualInput').value = '';
+}
+
+function verifyTicket(code, method, resultElId) {
+  code = code.trim().toUpperCase();
+  if (!VALID_TICKETS.has(code)) {
+    showResult(resultElId, 'error', `❌ 無效票券：${code}<br>此票券不存在`);
+    return;
+  }
+  const existing = records.find(r => r.ticket === code);
+  if (existing) {
+    showResult(resultElId, 'warning', `⚠️ ${code} 已於 ${existing.time} 使用！<br>（此票券已重複）`);
+    return;
+  }
+  const time = new Date().toLocaleString('zh-HK', { hour12: false });
+  records.push({ ticket: code, time, method });
+  const [sid, tno] = code.split('-');
+  showResult(resultElId, 'success', `✅ 歡迎入場！<br><span style="font-size:1.4em;">${sid}</span> · 票券 ${tno}<br>${time}`);
+}
+
+function showResult(elId, type, html) {
+  const el = document.getElementById(elId);
+  el.className = 'scan-result ' + type;
+  el.innerHTML = html;
+  el.style.display = 'block';
+}
+
+function renderRecords() {
+  const tbody = document.getElementById('recordsTable');
+  tbody.innerHTML = '';
+  if (records.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:20px; color:#999;">尚無入場記錄</td></tr>';
+  } else {
+    records.slice().reverse().forEach((r, i) => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${records.length - i}</td><td><b>${r.ticket}</b></td><td>${r.time}</td><td>${r.method}</td>`;
+      tbody.appendChild(tr);
+    });
+  }
+  document.getElementById('statTotal').textContent = records.length;
+  ['6A','6B','6C','6D','6S'].forEach(c => {
+    document.getElementById('stat' + c).textContent = records.filter(r => r.ticket.startsWith(c)).length;
+  });
+}
+
+function exportCSV() {
+  if (records.length === 0) { alert('尚無記錄可匯出'); return; }
+  let csv = '\uFEFF票券編號,入場時間,方式\n';
+  records.forEach(r => { csv += `${r.ticket},${r.time},${r.method}\n`; });
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = `入場記錄_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function clearRecords() {
+  if (confirm('確定要清除所有入場記錄嗎？此操作無法復原。')) {
+    records.length = 0;
+    renderRecords();
+  }
+}
+
+renderTickets();
+</script>
+</body>
+</html>

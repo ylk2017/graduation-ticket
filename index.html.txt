@@ -3,12 +3,16 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>🎓 畢業典禮入場系統</title>
+<title>🎓 畢業典禮入場系統（多裝置同步版）</title>
 <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+<!-- ▼▼▼ 新增：Firebase SDK ▼▼▼ -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<!-- ▲▲▲ 新增結束 ▲▲▲ -->
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; }
 body {
@@ -16,7 +20,7 @@ body {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   min-height: 100vh; padding: 16px; color: #333;
 }
-.container { max-width: 1100px; margin: 0 auto; }
+.container { max-width: 1200px; margin: 0 auto; }
 .header {
   background: white; padding: 24px; border-radius: 16px;
   box-shadow: 0 10px 30px rgba(0,0,0,0.15); margin-bottom: 16px; text-align: center;
@@ -24,13 +28,38 @@ body {
 .header h1 { color: #764ba2; font-size: 1.5em; margin-bottom: 6px; }
 .header .school { color: #333; font-size: 1.1em; font-weight: 600; margin-bottom: 4px; }
 .header p { color: #666; font-size: 0.9em; }
+
+/* ▼▼▼ 新增：同步狀態列 ▼▼▼ */
+.sync-bar {
+  display: flex; flex-wrap: wrap; justify-content: center; gap: 10px;
+  margin-top: 12px; align-items: center;
+}
+.sync-pill {
+  padding: 6px 14px; border-radius: 20px; font-size: 0.85em; font-weight: 600;
+  display: inline-flex; align-items: center; gap: 6px;
+}
+.sync-pill.connecting { background: #fff3cd; color: #856404; }
+.sync-pill.connected { background: #d4edda; color: #155724; }
+.sync-pill.offline { background: #f8d7da; color: #721c24; }
+.sync-pill.online-count { background: #d1ecf1; color: #0c5460; }
+.sync-dot {
+  width: 8px; height: 8px; border-radius: 50%; background: currentColor;
+  animation: pulse 1.5s infinite;
+}
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+.teacher-input {
+  padding: 6px 12px; border: 2px solid #764ba2; border-radius: 20px;
+  font-size: 0.85em; max-width: 200px;
+}
+/* ▲▲▲ 新增結束 ▲▲▲ */
+
 .tabs {
   display: flex; gap: 6px; margin-bottom: 16px; flex-wrap: wrap;
   background: white; padding: 8px; border-radius: 12px;
 }
 .tab {
-  flex: 1; min-width: 130px; padding: 12px; border: none; border-radius: 8px;
-  background: #f0f0f0; cursor: pointer; font-size: 0.9em; font-weight: 600;
+  flex: 1; min-width: 110px; padding: 12px 8px; border: none; border-radius: 8px;
+  background: #f0f0f0; cursor: pointer; font-size: 0.88em; font-weight: 600;
   color: #666; transition: all 0.3s;
 }
 .tab.active { background: linear-gradient(135deg, #667eea, #764ba2); color: white; }
@@ -41,13 +70,17 @@ body {
 .panel { display: none; }
 .panel.active { display: block; }
 h2 { color: #764ba2; margin-bottom: 16px; font-size: 1.3em; }
+h3 { color: #764ba2; margin: 16px 0 8px; font-size: 1.1em; }
 .btn {
   padding: 12px 20px; border: none; border-radius: 8px; cursor: pointer;
   font-size: 1em; font-weight: 600; transition: all 0.3s; margin: 4px;
 }
+.btn-sm { padding: 6px 10px; font-size: 0.8em; }
 .btn-primary { background: linear-gradient(135deg, #667eea, #764ba2); color: white; }
 .btn-success { background: linear-gradient(135deg, #11998e, #38ef7d); color: white; }
 .btn-danger { background: linear-gradient(135deg, #eb3349, #f45c43); color: white; }
+.btn-warning { background: linear-gradient(135deg, #f7971e, #ffd200); color: #333; }
+.btn-gray { background: #888; color: white; }
 .btn:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(0,0,0,0.2); }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 12px; margin-top: 16px; }
@@ -61,7 +94,6 @@ h2 { color: #764ba2; margin-bottom: 16px; font-size: 1.3em; }
 .ticket-card .qr-box { text-align: center; }
 .ticket-card .qr-label { font-size: 0.75em; color: #888; margin-top: 2px; }
 .ticket-card canvas { max-width: 100%; height: auto; }
-.ticket-card .btn { padding: 6px 10px; font-size: 0.8em; margin-top: 6px; }
 #reader { width: 100%; max-width: 500px; margin: 0 auto; }
 .scan-result {
   margin-top: 16px; padding: 20px; border-radius: 10px; text-align: center;
@@ -74,26 +106,28 @@ input[type="text"] {
   padding: 12px; border: 2px solid #ddd; border-radius: 8px; font-size: 1em;
   width: 100%; max-width: 300px;
 }
-table { width: 100%; border-collapse: collapse; margin-top: 12px; }
-th, td { padding: 10px; text-align: left; border-bottom: 1px solid #eee; }
-th { background: #764ba2; color: white; }
-tr:hover { background: #f5f5f5; }
 .stats {
-  display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 12px; margin-bottom: 16px;
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 10px; margin-bottom: 16px;
 }
 .stat-card {
   background: linear-gradient(135deg, #667eea, #764ba2); color: white;
-  padding: 16px; border-radius: 10px; text-align: center;
+  padding: 14px; border-radius: 10px; text-align: center;
 }
-.stat-card .num { font-size: 2em; font-weight: bold; }
-.stat-card .label { font-size: 0.9em; opacity: 0.9; }
+.stat-card.green { background: linear-gradient(135deg, #11998e, #38ef7d); }
+.stat-card.orange { background: linear-gradient(135deg, #f7971e, #ffd200); color: #333; }
+.stat-card .num { font-size: 1.8em; font-weight: bold; }
+.stat-card .label { font-size: 0.85em; opacity: 0.95; }
 .filter-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; align-items: center; }
-.filter-row select {
-  padding: 10px; border: 2px solid #ddd; border-radius: 8px; font-size: 1em;
+.filter-row select, .filter-row input[type="text"] {
+  padding: 10px; border: 2px solid #ddd; border-radius: 8px; font-size: 0.95em;
 }
 .notice {
   background: #fff3cd; border-left: 4px solid #ffc107; padding: 12px;
+  margin-bottom: 16px; border-radius: 6px; font-size: 0.9em;
+}
+.notice-blue {
+  background: #d1ecf1; border-left: 4px solid #17a2b8; padding: 12px;
   margin-bottom: 16px; border-radius: 6px; font-size: 0.9em;
 }
 .progress-bar {
@@ -105,10 +139,91 @@ tr:hover { background: #f5f5f5; }
   width: 0%; transition: width 0.3s; text-align: center; color: white;
   font-size: 0.8em; line-height: 20px;
 }
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+  gap: 8px;
+  margin-top: 12px;
+}
+.dash-cell {
+  background: #f5f5f5;
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 8px 4px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  position: relative;
+}
+.dash-cell:hover { transform: scale(1.05); box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+.dash-cell .sid { font-weight: bold; font-size: 0.95em; color: #333; margin-bottom: 4px; }
+.dash-cell .tix {
+  display: flex; gap: 4px; justify-content: center; font-size: 0.75em;
+}
+.dash-cell .tix span {
+  padding: 2px 6px; border-radius: 4px; font-weight: 600;
+  background: #ddd; color: #666;
+}
+.dash-cell .tix span.used { background: #28a745; color: white; }
+.dash-cell.full { background: #e8f5e9; border-color: #28a745; }
+.dash-cell.partial { background: #fff3e0; border-color: #ff9800; }
+.dash-cell.none { background: #f5f5f5; border-color: #e0e0e0; }
+
+.modal-backdrop {
+  display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.5); z-index: 1000;
+  align-items: center; justify-content: center; padding: 16px;
+}
+.modal-backdrop.active { display: flex; }
+.modal {
+  background: white; border-radius: 16px; padding: 24px;
+  max-width: 420px; width: 100%; box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+}
+.modal h3 { margin-bottom: 12px; }
+.modal .student-info {
+  text-align: center; padding: 16px; background: #f5f5f5;
+  border-radius: 10px; margin-bottom: 16px;
+}
+.modal .student-info .big { font-size: 2em; font-weight: bold; color: #764ba2; }
+.ticket-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 12px; background: #f9f9f9; border-radius: 8px; margin-bottom: 8px;
+}
+.ticket-row .tag {
+  padding: 4px 10px; border-radius: 4px; font-size: 0.85em; font-weight: 600;
+}
+.ticket-row .tag.used { background: #28a745; color: white; }
+.ticket-row .tag.unused { background: #ddd; color: #666; }
+
+.legend { display: flex; gap: 12px; flex-wrap: wrap; margin: 12px 0; font-size: 0.85em; }
+.legend-item { display: flex; align-items: center; gap: 6px; }
+.legend-box { width: 18px; height: 18px; border-radius: 4px; border: 2px solid; }
+
+.guide-section {
+  background: #f9f9f9; padding: 16px; border-radius: 10px;
+  margin-bottom: 16px; border-left: 4px solid #764ba2;
+}
+.guide-section h3 { margin-top: 0; }
+.guide-section ol, .guide-section ul { padding-left: 20px; line-height: 1.8; }
+.guide-section li { margin-bottom: 4px; }
+.guide-section code {
+  background: #eee; padding: 2px 6px; border-radius: 4px;
+  font-family: monospace; color: #c7254e;
+}
+.step-num {
+  display: inline-block; width: 26px; height: 26px; background: #764ba2;
+  color: white; border-radius: 50%; text-align: center; line-height: 26px;
+  font-weight: bold; margin-right: 8px;
+}
+
 @media (max-width: 600px) {
-  .tab { min-width: 45%; font-size: 0.85em; padding: 10px 6px; }
+  .tab { min-width: 45%; font-size: 0.82em; padding: 10px 4px; }
   .header h1 { font-size: 1.2em; }
   .header .school { font-size: 1em; }
+  .dashboard-grid { grid-template-columns: repeat(auto-fill, minmax(75px, 1fr)); }
+  .dash-cell .sid { font-size: 0.85em; }
+  .dash-cell .tix span { padding: 1px 4px; font-size: 0.7em; }
 }
 </style>
 </head>
@@ -118,6 +233,19 @@ tr:hover { background: #f5f5f5; }
     <div class="school">宣道會陳朱素華紀念中學</div>
     <h1>🎓 畢業典禮入場系統</h1>
     <p>QR Code 電子入場券管理 · 共 139 位學生 × 2 張票 = 278 張</p>
+
+    <!-- ▼▼▼ 新增：同步狀態列 ▼▼▼ -->
+    <div class="sync-bar">
+      <span id="syncPill" class="sync-pill connecting">
+        <span class="sync-dot"></span><span id="syncText">連接雲端中...</span>
+      </span>
+      <span class="sync-pill online-count">
+        👥 <span id="onlineCount">1</span> 部裝置在線
+      </span>
+      <input type="text" id="teacherName" class="teacher-input"
+             placeholder="輸入你的名稱（可選）" oninput="updateTeacherName()">
+    </div>
+    <!-- ▲▲▲ 新增結束 ▲▲▲ -->
   </div>
 
   <div class="tabs">
@@ -125,10 +253,12 @@ tr:hover { background: #f5f5f5; }
     <button class="tab" onclick="switchTab(1)">📷 鏡頭掃描</button>
     <button class="tab" onclick="switchTab(2)">🖼️ 圖片掃描</button>
     <button class="tab" onclick="switchTab(3)">⌨️ 手動輸入</button>
-    <button class="tab" onclick="switchTab(4)">📊 入場記錄</button>
+    <button class="tab" onclick="switchTab(4)">📊 掃描儀表板</button>
+    <button class="tab" onclick="switchTab(5)">📖 使用說明</button>
   </div>
 
   <div class="content">
+    <!-- Panel 0: 產生入場券 -->
     <div class="panel active" id="panel-0">
       <h2>🎫 產生學生入場券</h2>
       <div class="notice">
@@ -153,10 +283,11 @@ tr:hover { background: #f5f5f5; }
       <div class="grid" id="ticketsGrid"></div>
     </div>
 
+    <!-- Panel 1: 鏡頭掃描 -->
     <div class="panel" id="panel-1">
       <h2>📷 鏡頭即時掃描</h2>
       <div class="notice">
-        💡 需要 HTTPS 網址及授權鏡頭權限。T1 與 T2 分別驗證，每張票只可使用一次。
+        💡 需要 HTTPS 網址及授權鏡頭權限。所有裝置的掃描記錄會即時同步。
       </div>
       <div style="text-align:center;">
         <button class="btn btn-primary" id="startScanBtn" onclick="startScan()">▶️ 啟動鏡頭</button>
@@ -166,6 +297,7 @@ tr:hover { background: #f5f5f5; }
       <div class="scan-result" id="scanResult"></div>
     </div>
 
+    <!-- Panel 2: 圖片掃描 -->
     <div class="panel" id="panel-2">
       <h2>🖼️ 上傳 QR Code 圖片</h2>
       <div class="notice">
@@ -176,6 +308,7 @@ tr:hover { background: #f5f5f5; }
       <div class="scan-result" id="imageResult"></div>
     </div>
 
+    <!-- Panel 3: 手動輸入 -->
     <div class="panel" id="panel-3">
       <h2>⌨️ 手動輸入票券編號</h2>
       <div class="notice">
@@ -189,29 +322,175 @@ tr:hover { background: #f5f5f5; }
       <div class="scan-result" id="manualResult"></div>
     </div>
 
+    <!-- Panel 4: 掃描儀表板 -->
     <div class="panel" id="panel-4">
-      <h2>📊 入場統計與記錄</h2>
+      <h2>📊 掃描儀表板</h2>
+      <div class="notice-blue">
+        💡 顯示全部 <b>278 張門票</b>的即時入場狀態。所有裝置同步顯示。點擊任何學生格子可手動<b>標記入場</b>或<b>收回入場記錄</b>。
+      </div>
+
       <div class="stats">
-        <div class="stat-card"><div class="num" id="statTotal">0</div><div class="label">已入場票數</div></div>
-        <div class="stat-card"><div class="num" id="stat6A">0</div><div class="label">6A 入場</div></div>
-        <div class="stat-card"><div class="num" id="stat6B">0</div><div class="label">6B 入場</div></div>
-        <div class="stat-card"><div class="num" id="stat6C">0</div><div class="label">6C 入場</div></div>
-        <div class="stat-card"><div class="num" id="stat6D">0</div><div class="label">6D 入場</div></div>
-        <div class="stat-card"><div class="num" id="stat6S">0</div><div class="label">6S 入場</div></div>
+        <div class="stat-card green"><div class="num" id="statUsed">0</div><div class="label">已入場 / 278</div></div>
+        <div class="stat-card orange"><div class="num" id="statPercent">0%</div><div class="label">入場率</div></div>
+        <div class="stat-card"><div class="num" id="stat6A">0/54</div><div class="label">6A</div></div>
+        <div class="stat-card"><div class="num" id="stat6B">0/50</div><div class="label">6B</div></div>
+        <div class="stat-card"><div class="num" id="stat6C">0/52</div><div class="label">6C</div></div>
+        <div class="stat-card"><div class="num" id="stat6D">0/54</div><div class="label">6D</div></div>
+        <div class="stat-card"><div class="num" id="stat6S">0/68</div><div class="label">6S</div></div>
       </div>
-      <div>
-        <button class="btn btn-success" onclick="exportCSV()">📥 匯出 CSV</button>
-        <button class="btn btn-danger" onclick="clearRecords()">🗑️ 清除全部記錄</button>
+
+      <div class="filter-row">
+        <label><b>班別：</b></label>
+        <select id="dashClassFilter" onchange="renderDashboard()">
+          <option value="all">全部</option>
+          <option value="6A">6A</option>
+          <option value="6B">6B</option>
+          <option value="6C">6C</option>
+          <option value="6D">6D</option>
+          <option value="6S">6S</option>
+        </select>
+        <label><b>狀態：</b></label>
+        <select id="dashStatusFilter" onchange="renderDashboard()">
+          <option value="all">全部</option>
+          <option value="full">全部入場（2/2）</option>
+          <option value="partial">部分入場（1/2）</option>
+          <option value="none">未入場（0/2）</option>
+        </select>
+        <input type="text" id="dashSearch" placeholder="搜尋編號，如 6A01" oninput="renderDashboard()">
+        <button class="btn btn-success btn-sm" onclick="exportCSV()">📥 匯出 CSV</button>
+        <button class="btn btn-danger btn-sm" onclick="clearRecords()">🗑️ 清除全部</button>
       </div>
-      <table>
-        <thead><tr><th>#</th><th>票券編號</th><th>入場時間</th><th>方式</th></tr></thead>
-        <tbody id="recordsTable"></tbody>
-      </table>
+
+      <div class="legend">
+        <div class="legend-item"><div class="legend-box" style="background:#e8f5e9; border-color:#28a745;"></div>全部入場 2/2</div>
+        <div class="legend-item"><div class="legend-box" style="background:#fff3e0; border-color:#ff9800;"></div>部分入場 1/2</div>
+        <div class="legend-item"><div class="legend-box" style="background:#f5f5f5; border-color:#e0e0e0;"></div>未入場 0/2</div>
+      </div>
+
+      <div class="dashboard-grid" id="dashboardGrid"></div>
+    </div>
+
+    <!-- Panel 5: 使用說明 -->
+    <div class="panel" id="panel-5">
+      <h2>📖 使用說明</h2>
+
+      <div class="guide-section">
+        <h3>☁️ 多裝置同步功能（新）</h3>
+        <ul>
+          <li>本系統已連接 <b>Firebase 雲端資料庫</b>，多部裝置開啟同一個網址即可同步</li>
+          <li>頂部狀態列會顯示「已連接雲端」及在線裝置數</li>
+          <li>任何裝置掃描的票券會<b>即時</b>同步到其他所有裝置（1 秒內）</li>
+          <li>建議每位驗票老師在頂部輸入自己的名稱（例如「陳 Sir (正門)」）以便追蹤</li>
+          <li>如果網絡斷開，狀態會變成「離線」，連線恢復後會自動同步</li>
+        </ul>
+      </div>
+
+      <div class="guide-section">
+        <h3>🎫 系統概覽</h3>
+        <p>本系統為<b>宣道會陳朱素華紀念中學畢業典禮</b>的電子入場券管理工具：</p>
+        <ul>
+          <li>共 <b>139 位學生</b>，每人分配 <b>2 張入場券</b>（T1 及 T2），合共 <b>278 張門票</b></li>
+          <li>票券編號格式：<code>班別+學號-票號</code>，例如 <code>6A01-T1</code></li>
+          <li>每張門票僅能使用一次，系統自動防止重複入場</li>
+          <li>支援多種驗票方式：鏡頭掃描、圖片上傳、手動輸入、儀表板標記</li>
+        </ul>
+      </div>
+
+      <div class="guide-section">
+        <h3>📋 典禮前準備</h3>
+        <ol>
+          <li><span class="step-num">1</span>進入「<b>🎫 產生入場券</b>」頁面</li>
+          <li><span class="step-num">2</span>選擇班別（或全部），點擊「<b>下載全部 PDF（ZIP）</b>」</li>
+          <li><span class="step-num">3</span>等待進度條完成，系統會自動下載 ZIP 壓縮檔</li>
+          <li><span class="step-num">4</span>解壓後每位學生一個 PDF 檔（如 <code>6A01.pdf</code>），包含 T1、T2 兩張票</li>
+          <li><span class="step-num">5</span>可列印後沿中間虛線剪開，或直接電子傳送給學生</li>
+        </ol>
+      </div>
+
+      <div class="guide-section">
+        <h3>✅ 典禮當日驗票</h3>
+        <p><b>多位老師同時驗票：</b></p>
+        <ol>
+          <li>每位驗票老師開啟<b>同一條網址</b>（例如主辦同事傳過去的 link）</li>
+          <li>在頂部輸入自己的名稱（方便之後查看是哪位老師掃的）</li>
+          <li>開始掃描 — 每一張票驗過後，其他老師的儀表板也會即時更新</li>
+          <li>如有人試圖重複入場，無論用邊部機都會顯示「已使用」警告</li>
+        </ol>
+        <p><b>方式一：鏡頭即時掃描（推薦）</b></p>
+        <ol>
+          <li>進入「<b>📷 鏡頭掃描</b>」，點擊「啟動鏡頭」</li>
+          <li>授權鏡頭權限後，將票券 QR Code 對準鏡頭</li>
+          <li>系統自動驗證並顯示結果，<b>綠色</b>表示成功，<b>黃色</b>表示已使用，<b>紅色</b>表示無效</li>
+        </ol>
+        <p><b>方式二：圖片上傳掃描</b></p>
+        <ol>
+          <li>進入「<b>🖼️ 圖片掃描</b>」，上傳 QR Code 截圖或拍攝照片</li>
+        </ol>
+        <p><b>方式三：手動輸入編號</b></p>
+        <ol>
+          <li>進入「<b>⌨️ 手動輸入</b>」，輸入完整票券編號（如 <code>6A01-T1</code>）</li>
+        </ol>
+      </div>
+
+      <div class="guide-section">
+        <h3>📊 掃描儀表板操作</h3>
+        <ul>
+          <li>實時顯示全部 278 張門票狀態，每位學生一格，<b>所有裝置同步</b></li>
+          <li>顏色說明：<b style="color:#28a745;">綠色=全部入場</b>、<b style="color:#ff9800;">橙色=部分入場</b>、<b style="color:#888;">灰色=未入場</b></li>
+          <li>點擊任何學生格子可彈出對話框：
+            <ul>
+              <li>✅ <b>標記入場</b>：為 T1 或 T2 手動標記已入場</li>
+              <li>↩️ <b>收回入場記錄</b>：誤掃或需要撤銷時使用（所有裝置會同步）</li>
+            </ul>
+          </li>
+          <li>可用班別、狀態、搜尋框即時篩選</li>
+          <li>可匯出 CSV 入場記錄供後續統計</li>
+        </ul>
+      </div>
+
+      <div class="guide-section">
+        <h3>⚠️ 常見問題</h3>
+        <ul>
+          <li><b>鏡頭無法啟動？</b>請確保使用 HTTPS 網址（如 GitHub Pages、Netlify），並在瀏覽器允許鏡頭權限。</li>
+          <li><b>資料會遺失嗎？</b>入場記錄儲存於 Firebase 雲端，就算所有裝置關閉亦不會遺失。但建議典禮後匯出 CSV 備份。</li>
+          <li><b>多位老師同時掃同一張票會怎樣？</b>系統會用 Firebase 交易鎖定，只有第一位成功，第二位會顯示警告。</li>
+          <li><b>票券遺失怎麼辦？</b>使用手動輸入功能，或於儀表板找到該學生後點擊手動標記入場。</li>
+          <li><b>典禮完結後如何重設？</b>點擊儀表板的「清除全部」會同步清除所有裝置的記錄。</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="modalBackdrop" onclick="if(event.target===this) closeModal()">
+  <div class="modal">
+    <h3>🎫 門票狀態管理</h3>
+    <div class="student-info">
+      <div>學生編號</div>
+      <div class="big" id="modalStudentId">--</div>
+    </div>
+    <div id="modalTicketsList"></div>
+    <div style="text-align:right; margin-top:16px;">
+      <button class="btn btn-gray" onclick="closeModal()">關閉</button>
     </div>
   </div>
 </div>
 
 <script>
+/* ============================================================
+   🔥 Firebase 設定（👈 貼呢度！）
+   請將 Firebase Console 給你的 firebaseConfig 整段貼入下方
+   ============================================================ */
+const firebaseConfig = {
+  apiKey: "AIzaSyDuOVisip4sdHiHa1X8jp9y_fLEyJ0uj8c",
+  authDomain: "graduation-swc.firebaseapp.com",
+  projectId: "graduation-swc",
+  storageBucket: "graduation-swc.firebasestorage.app",
+  messagingSenderId: "1084747219750",
+  appId: "1:1084747219750:web:842f34f44d7366df1c77e7"
+};
+/* ============================================================ */
+
 const SCHOOL_NAME = '宣道會陳朱素華紀念中學';
 const CLASSES = [
   { name: '6A', count: 27 },
@@ -234,12 +513,89 @@ STUDENTS.forEach(s => {
   VALID_TICKETS.add(`${s}-T2`);
 });
 
-const records = [];
+// records: Map<ticket, {time, method, teacher}>
+const records = new Map();
+
+/* ============================================================
+   🔥 Firebase 初始化與同步邏輯
+   ============================================================ */
+let recordsRef = null, presenceRef = null, myPresenceRef = null;
+const MY_DEVICE_ID = 'dev_' + Math.random().toString(36).substr(2, 9);
+let myTeacherName = '';
+
+try {
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.database();
+  recordsRef = db.ref('ceremony2025/records');
+  presenceRef = db.ref('ceremony2025/presence');
+  myPresenceRef = db.ref('ceremony2025/presence/' + MY_DEVICE_ID);
+
+  // 連線狀態監聽
+  db.ref('.info/connected').on('value', snap => {
+    const pill = document.getElementById('syncPill');
+    const text = document.getElementById('syncText');
+    if (snap.val() === true) {
+      pill.className = 'sync-pill connected';
+      text.textContent = '✓ 已連接雲端';
+      // 註冊自己在線
+      myPresenceRef.set({
+        online: true,
+        teacher: myTeacherName || '未命名',
+        at: firebase.database.ServerValue.TIMESTAMP
+      });
+      myPresenceRef.onDisconnect().remove();
+    } else {
+      pill.className = 'sync-pill offline';
+      text.textContent = '⚠ 離線（記錄不會同步）';
+    }
+  });
+
+  // 監聽所有記錄（即時同步）
+  recordsRef.on('value', snap => {
+    records.clear();
+    const data = snap.val() || {};
+    Object.entries(data).forEach(([code, info]) => {
+      records.set(code, info);
+    });
+    // 如果儀表板正在顯示，更新它
+    if (document.getElementById('panel-4').classList.contains('active')) {
+      renderDashboard();
+    } else {
+      // 總是更新統計數字（就算隱藏都計算好）
+      updateDashboardStats();
+    }
+    // 如果 Modal 開著，同步更新
+    if (currentModalSid) renderModalTickets();
+  });
+
+  // 監聽在線人數
+  presenceRef.on('value', snap => {
+    const count = Object.keys(snap.val() || {}).length;
+    document.getElementById('onlineCount').textContent = count || 1;
+  });
+} catch (e) {
+  console.error('Firebase 初始化失敗：', e);
+  const pill = document.getElementById('syncPill');
+  pill.className = 'sync-pill offline';
+  document.getElementById('syncText').textContent = '❌ 未設定 Firebase';
+  alert('Firebase 未正確設定，資料將不會同步到其他裝置。\n請按「使用說明」的指示設定 Firebase。');
+}
+
+function updateTeacherName() {
+  myTeacherName = document.getElementById('teacherName').value.trim();
+  if (myPresenceRef) {
+    myPresenceRef.update({ teacher: myTeacherName || '未命名' });
+  }
+}
+
+/* ============================================================
+   以下是原本的功能邏輯，只有驗票/修改記錄時改為寫入 Firebase
+   ============================================================ */
 
 function switchTab(i) {
   document.querySelectorAll('.tab').forEach((t, idx) => t.classList.toggle('active', idx === i));
   document.querySelectorAll('.panel').forEach((p, idx) => p.classList.toggle('active', idx === i));
-  if (i === 4) renderRecords();
+  if (i === 4) renderDashboard();
 }
 
 function renderTickets() {
@@ -256,7 +612,7 @@ function renderTickets() {
         <div class="qr-box"><div id="qr-${id}-T1"></div><div class="qr-label">T1</div></div>
         <div class="qr-box"><div id="qr-${id}-T2"></div><div class="qr-label">T2</div></div>
       </div>
-      <button class="btn btn-primary" onclick="downloadSinglePDF('${id}')">📥 PDF</button>
+      <button class="btn btn-primary btn-sm" onclick="downloadSinglePDF('${id}')">📥 PDF</button>
     `;
     grid.appendChild(card);
     new QRCode(document.getElementById(`qr-${id}-T1`), {
@@ -440,6 +796,7 @@ async function downloadBatch(list, zipName) {
 }
 
 let html5QrCode = null;
+let lastScanTime = 0;
 async function startScan() {
   document.getElementById('scanResult').style.display = 'none';
   try {
@@ -447,7 +804,12 @@ async function startScan() {
     await html5QrCode.start(
       { facingMode: 'environment' },
       { fps: 10, qrbox: { width: 250, height: 250 } },
-      (decoded) => { verifyTicket(decoded, '鏡頭掃描', 'scanResult'); },
+      (decoded) => {
+        const now = Date.now();
+        if (now - lastScanTime < 1500) return;
+        lastScanTime = now;
+        verifyTicket(decoded, '鏡頭掃描', 'scanResult');
+      },
       () => {}
     );
     document.getElementById('startScanBtn').style.display = 'none';
@@ -482,7 +844,7 @@ function scanImage(evt) {
       if (code) {
         verifyTicket(code.data, '圖片上傳', 'imageResult');
       } else {
-        showResult('imageResult', 'error', '❌ 無法識別此圖片中的 QR Code，請使用更清晰的圖片。');
+        showResult('imageResult', 'error', '❌ 無法識別此圖片中的 QR Code');
       }
     };
     img.src = e.target.result;
@@ -497,21 +859,62 @@ function verifyManual() {
   document.getElementById('manualInput').value = '';
 }
 
+/* ✅ 修改：驗票時寫入 Firebase，用 transaction 確保不會被多部機重複 scan */
 function verifyTicket(code, method, resultElId) {
   code = code.trim().toUpperCase();
   if (!VALID_TICKETS.has(code)) {
     showResult(resultElId, 'error', `❌ 無效票券：${code}<br>此票券不存在`);
     return;
   }
-  const existing = records.find(r => r.ticket === code);
-  if (existing) {
-    showResult(resultElId, 'warning', `⚠️ ${code} 已於 ${existing.time} 使用！<br>（此票券已重複）`);
+
+  if (!recordsRef) {
+    // 離線模式 fallback
+    if (records.has(code)) {
+      const existing = records.get(code);
+      showResult(resultElId, 'warning', `⚠️ ${code} 已於 ${existing.time} 使用！（離線）`);
+      return;
+    }
+    const time = new Date().toLocaleString('zh-HK', { hour12: false });
+    records.set(code, { time, method, teacher: myTeacherName || '未命名' });
+    const [sid, tno] = code.split('-');
+    showResult(resultElId, 'success', `✅ 歡迎入場！（離線）<br><span style="font-size:1.4em;">${sid}</span> · 票券 ${tno}<br>${time}`);
+    updateDashboardStats();
     return;
   }
+
+  // 即時檢查（快速反應）
+  if (records.has(code)) {
+    const existing = records.get(code);
+    showResult(resultElId, 'warning',
+      `⚠️ ${code} 已於 ${existing.time} 使用！<br>` +
+      `驗票員：${existing.teacher || '未命名'}（${existing.method || '-'}）`);
+    return;
+  }
+
+  // 使用 Firebase transaction 確保同時有多部機掃同一張票時只有一次成功
   const time = new Date().toLocaleString('zh-HK', { hour12: false });
-  records.push({ ticket: code, time, method });
-  const [sid, tno] = code.split('-');
-  showResult(resultElId, 'success', `✅ 歡迎入場！<br><span style="font-size:1.4em;">${sid}</span> · 票券 ${tno}<br>${time}`);
+  const info = { time, method, teacher: myTeacherName || '未命名' };
+
+  recordsRef.child(code).transaction(
+    current => {
+      if (current !== null) return; // 已被其他裝置用了 → abort
+      return info;
+    },
+    (error, committed, snapshot) => {
+      if (error) {
+        showResult(resultElId, 'error', `❌ 雲端錯誤：${error.message}`);
+      } else if (!committed) {
+        const existing = snapshot.val();
+        showResult(resultElId, 'warning',
+          `⚠️ ${code} 已於 ${existing.time} 使用！<br>` +
+          `驗票員：${existing.teacher || '未命名'}`);
+      } else {
+        const [sid, tno] = code.split('-');
+        showResult(resultElId, 'success',
+          `✅ 歡迎入場！<br><span style="font-size:1.4em;">${sid}</span> · 票券 ${tno}<br>${time}`);
+      }
+    }
+  );
 }
 
 function showResult(elId, type, html) {
@@ -521,28 +924,148 @@ function showResult(elId, type, html) {
   el.style.display = 'block';
 }
 
-function renderRecords() {
-  const tbody = document.getElementById('recordsTable');
-  tbody.innerHTML = '';
-  if (records.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; padding:20px; color:#999;">尚無入場記錄</td></tr>';
-  } else {
-    records.slice().reverse().forEach((r, i) => {
-      const tr = document.createElement('tr');
-      tr.innerHTML = `<td>${records.length - i}</td><td><b>${r.ticket}</b></td><td>${r.time}</td><td>${r.method}</td>`;
-      tbody.appendChild(tr);
+function getStudentStatus(sid) {
+  const t1 = records.has(`${sid}-T1`);
+  const t2 = records.has(`${sid}-T2`);
+  const count = (t1 ? 1 : 0) + (t2 ? 1 : 0);
+  if (count === 2) return 'full';
+  if (count === 1) return 'partial';
+  return 'none';
+}
+
+function updateDashboardStats() {
+  const usedCount = records.size;
+  const statUsedEl = document.getElementById('statUsed');
+  if (statUsedEl) {
+    statUsedEl.textContent = usedCount;
+    document.getElementById('statPercent').textContent = Math.round(usedCount / 278 * 100) + '%';
+    CLASSES.forEach(c => {
+      let classTotal = c.count * 2;
+      let classUsed = 0;
+      for (let i = 1; i <= c.count; i++) {
+        const sid = `${c.name}${String(i).padStart(2, '0')}`;
+        if (records.has(`${sid}-T1`)) classUsed++;
+        if (records.has(`${sid}-T2`)) classUsed++;
+      }
+      document.getElementById(`stat${c.name}`).textContent = `${classUsed}/${classTotal}`;
     });
   }
-  document.getElementById('statTotal').textContent = records.length;
-  ['6A','6B','6C','6D','6S'].forEach(c => {
-    document.getElementById('stat' + c).textContent = records.filter(r => r.ticket.startsWith(c)).length;
+}
+
+function renderDashboard() {
+  const classFilter = document.getElementById('dashClassFilter').value;
+  const statusFilter = document.getElementById('dashStatusFilter').value;
+  const search = document.getElementById('dashSearch').value.trim().toUpperCase();
+
+  let list = STUDENTS.slice();
+  if (classFilter !== 'all') list = list.filter(s => s.startsWith(classFilter));
+  if (search) list = list.filter(s => s.includes(search));
+  if (statusFilter !== 'all') list = list.filter(s => getStudentStatus(s) === statusFilter);
+
+  const grid = document.getElementById('dashboardGrid');
+  grid.innerHTML = '';
+
+  if (list.length === 0) {
+    grid.innerHTML = '<div style="grid-column:1/-1; text-align:center; padding:30px; color:#999;">無符合條件的學生</div>';
+  } else {
+    list.forEach(sid => {
+      const t1 = records.has(`${sid}-T1`);
+      const t2 = records.has(`${sid}-T2`);
+      const status = getStudentStatus(sid);
+      const cell = document.createElement('div');
+      cell.className = `dash-cell ${status}`;
+      cell.onclick = () => openModal(sid);
+      cell.innerHTML = `
+        <div class="sid">${sid}</div>
+        <div class="tix">
+          <span class="${t1 ? 'used' : ''}">T1</span>
+          <span class="${t2 ? 'used' : ''}">T2</span>
+        </div>
+      `;
+      grid.appendChild(cell);
+    });
+  }
+
+  updateDashboardStats();
+}
+
+let currentModalSid = null;
+function openModal(sid) {
+  currentModalSid = sid;
+  document.getElementById('modalStudentId').textContent = sid;
+  renderModalTickets();
+  document.getElementById('modalBackdrop').classList.add('active');
+}
+
+function closeModal() {
+  document.getElementById('modalBackdrop').classList.remove('active');
+  currentModalSid = null;
+}
+
+function renderModalTickets() {
+  const sid = currentModalSid;
+  if (!sid) return;
+  const container = document.getElementById('modalTicketsList');
+  container.innerHTML = '';
+  ['T1', 'T2'].forEach(tn => {
+    const code = `${sid}-${tn}`;
+    const used = records.has(code);
+    const info = used ? records.get(code) : null;
+    const row = document.createElement('div');
+    row.className = 'ticket-row';
+    row.innerHTML = `
+      <div>
+        <div style="font-weight:bold; font-size:1.1em;">${code}</div>
+        <div style="font-size:0.8em; color:#666; margin-top:2px;">
+          ${used ? `✓ ${info.time} (${info.method})${info.teacher ? ' · '+info.teacher : ''}` : '尚未入場'}
+        </div>
+      </div>
+      <div>
+        <span class="tag ${used ? 'used' : 'unused'}">${used ? '已入場' : '未入場'}</span>
+        ${used
+          ? `<button class="btn btn-danger btn-sm" onclick="revokeTicket('${code}')">↩️ 收回</button>`
+          : `<button class="btn btn-success btn-sm" onclick="markTicket('${code}')">✅ 標記入場</button>`
+        }
+      </div>
+    `;
+    container.appendChild(row);
   });
 }
 
+/* ✅ 修改：手動標記寫入 Firebase */
+function markTicket(code) {
+  const time = new Date().toLocaleString('zh-HK', { hour12: false });
+  const info = { time, method: '手動標記', teacher: myTeacherName || '未命名' };
+  if (recordsRef) {
+    recordsRef.child(code).set(info);
+  } else {
+    records.set(code, info);
+    renderModalTickets();
+    renderDashboard();
+  }
+}
+
+/* ✅ 修改：收回記錄同步到 Firebase */
+function revokeTicket(code) {
+  if (confirm(`確定要收回 ${code} 的入場記錄嗎？\n所有裝置都會同步此變更。`)) {
+    if (recordsRef) {
+      recordsRef.child(code).remove();
+    } else {
+      records.delete(code);
+      renderModalTickets();
+      renderDashboard();
+    }
+  }
+}
+
 function exportCSV() {
-  if (records.length === 0) { alert('尚無記錄可匯出'); return; }
-  let csv = '\uFEFF票券編號,入場時間,方式\n';
-  records.forEach(r => { csv += `${r.ticket},${r.time},${r.method}\n`; });
+  if (records.size === 0) { alert('尚無記錄可匯出'); return; }
+  let csv = '\uFEFF票券編號,學生編號,票號,入場時間,方式,驗票員\n';
+  const sorted = Array.from(records.entries()).sort((a,b) => a[0].localeCompare(b[0]));
+  sorted.forEach(([code, info]) => {
+    const [sid, tno] = code.split('-');
+    csv += `${code},${sid},${tno},${info.time},${info.method},${info.teacher || ''}\n`;
+  });
   const blob = new Blob([csv], { type: 'text/csv' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -551,10 +1074,15 @@ function exportCSV() {
   URL.revokeObjectURL(url);
 }
 
+/* ✅ 修改：清除記錄同步到 Firebase */
 function clearRecords() {
-  if (confirm('確定要清除所有入場記錄嗎？此操作無法復原。')) {
-    records.length = 0;
-    renderRecords();
+  if (confirm('⚠️ 確定要清除所有入場記錄嗎？\n此操作會同步清除所有裝置的記錄，無法復原！')) {
+    if (recordsRef) {
+      recordsRef.remove();
+    } else {
+      records.clear();
+      renderDashboard();
+    }
   }
 }
 
